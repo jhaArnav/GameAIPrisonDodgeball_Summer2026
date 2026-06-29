@@ -42,6 +42,10 @@ namespace GameAIStudent
         // high hit rate. We CLOSE THE DISTANCE (advance toward the target) to create these shots
         // rather than chucking long, easily-dodged cross-field throws.
         const float ThrowMaxInterceptT = 1.1f;
+        // Penalty (sec) added to an armed opponent's shot score so we prefer defenseless targets
+        // (an opponent without a ball can't counter-throw -> a free elimination). Larger than the
+        // max intercept time so any ball-less target outranks any armed one.
+        const float ArmedTargetPenalty = 10f;
         // If we hold a ball but can't find a shot for this long, reposition / re-plan.
         const float MaxThrowWaitSec = 2.5f;
         // How often a ball-less defender re-picks a position (keeps it mobile, harder to hit).
@@ -171,7 +175,7 @@ namespace GameAIStudent
                     return false;
 
                 bool found = false;
-                float bestT = float.MaxValue;
+                float bestScore = float.MaxValue;
                 float maxT = ThrowMaxInterceptT;
 
                 foreach (var o in opps)
@@ -185,9 +189,14 @@ namespace GameAIStudent
                     if (t > maxT)
                         continue;
 
-                    if (t < bestT)
+                    // Prefer DEFENSELESS targets: an opponent without a ball can't counter-throw,
+                    // so it's a free, risk-free elimination. Armed opponents get a penalty so we only
+                    // pick them when no ball-less target is available. Among equals, quickest shot wins.
+                    float score = t + (o.HasBall ? ArmedTargetPenalty : 0f);
+
+                    if (score < bestScore)
                     {
-                        bestT = t;
+                        bestScore = score;
                         dir = d;
                         speedNorm = sn;
                         interceptPos = ip;
