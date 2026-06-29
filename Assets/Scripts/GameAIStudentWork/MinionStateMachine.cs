@@ -38,11 +38,10 @@ namespace GameAIStudent
         public static float MaxAllowedThrowPositionError = (0.25f + 0.5f) * 0.99f;
 
         // ---- Tunable strategy parameters (adjust after head-to-head test runs) ----
-        // Max ball flight time for a shot when balls are plentiful (aggressive).
-        const float ThrowMaxInterceptT = 1.6f;
-        // Max ball flight time when balls are scarce: only near-certain shots, to preserve
-        // possession (a missed throw hands the ball to the opponent).
-        const float ScarceThrowMaxInterceptT = 1.0f;
+        // Only take high-confidence shots: short flight time => opponent can't dodge in time =>
+        // high hit rate. We CLOSE THE DISTANCE (advance toward the target) to create these shots
+        // rather than chucking long, easily-dodged cross-field throws.
+        const float ThrowMaxInterceptT = 1.1f;
         // If we hold a ball but can't find a shot for this long, reposition / re-plan.
         const float MaxThrowWaitSec = 2.5f;
         // How often a ball-less defender re-picks a position (keeps it mobile, harder to hit).
@@ -173,7 +172,7 @@ namespace GameAIStudent
 
                 bool found = false;
                 float bestT = float.MaxValue;
-                float maxT = CurrentThrowMaxT;
+                float maxT = ThrowMaxInterceptT;
 
                 foreach (var o in opps)
                 {
@@ -200,23 +199,19 @@ namespace GameAIStudent
                 return found;
             }
 
-            // Should we preserve possession (only take near-certain shots)? On a SMALL team with
-            // scarce balls, a missed throw is near-fatal: no teammate to recover the lost ball and
-            // no numbers to pressure with. Big teams stay aggressive — teammates recover misses and
-            // collective pressure converts close games into wins (avoids stalemate ties).
-            protected bool PreservePossession
+            // Find the nearest live opponent's position (for closing distance / facing). Returns
+            // false if there is no valid target.
+            protected bool NearestOpponentPos(out Vector3 pos)
             {
-                get
+                pos = Minion.transform.position;
+                if (Mgr.FindClosestNonPrisonerOpponentIndex(Minion.transform.position, Team, out var idx) &&
+                    Mgr.GetOpponentInfo(Team, idx, out var info))
                 {
-                    int teamSize = (TeamData != null) ? TeamData.TeamSize : Mgr.TeamSize;
-                    int balls = Mgr.BallsPerTeam;
-                    // 1v1 is sudden death (no teammate) -> guard the ball unless balls are plentiful.
-                    // 2v2 only when balls are truly scarce (1 ball). Bigger teams always aggressive.
-                    return (teamSize == 1 && balls <= 2) || (teamSize == 2 && balls <= 1);
+                    pos = info.Pos;
+                    return true;
                 }
+                return false;
             }
-
-            protected float CurrentThrowMaxT => PreservePossession ? ScarceThrowMaxInterceptT : ThrowMaxInterceptT;
 
             // Dodge an incoming projectile if there is one. Returns true if an evade was performed.
             protected bool DodgeIfThreatened()
@@ -463,6 +458,7 @@ namespace GameAIStudent
                 if (FindBestThrowTarget(out var dir, out var speedNorm, out var interceptPos, out var interceptT))
                 {
                     enterTime = Time.timeSinceLevelLoad; // making progress; keep trying to land this shot
+                    Minion.Stop();                       // settle to aim a high-confidence shot
                     Minion.FaceTowardsForThrow(interceptPos);
 
                     // Throwing is our edge: fire the instant we're aligned (don't dodge it away).
@@ -474,22 +470,25 @@ namespace GameAIStudent
                     return null;
                 }
 
-                // No shot available: survival first.
+                // No clean shot yet. Survival first.
                 DodgeIfThreatened();
 
                 // Rescue a teammate if one needs help and we can't shoot anyone.
                 if (FindRescuableTeammate(out var buddy))
                     return ParentFSM.CreateStateTransition<MinionScript>(RescueStateName, buddy, true);
 
-                // Stuck too long with no target: reposition to look for a better angle.
-                if (Time.timeSinceLevelLoad - enterTime > MaxThrowWaitSec)
-                    return ParentFSM.CreateStateTransition(GoToThrowSpotStateName);
-
-                // Keep facing the nearest opponent so we're ready the instant a shot opens up.
-                if (Mgr.FindClosestNonPrisonerOpponentIndex(Minion.transform.position, Team, out var oi) &&
-                    Mgr.GetOpponentInfo(Team, oi, out var info))
+                // CLOSE THE DISTANCE toward the nearest opponent to create a short, high-hit-rate
+                // shot. The navmesh clamps us to our legal area (can't enter the opponent's side),
+                // so this advances as far forward as the rules allow. We stop and fire the moment a
+                // shot opens up (handled above). This both raises hit rate and breaks stalemates.
+                if (NearestOpponentPos(out var oppPos))
                 {
-                    Minion.FaceTowardsForThrow(info.Pos);
+                    Minion.GoTo(oppPos);
+                }
+                else if (Time.timeSinceLevelLoad - enterTime > MaxThrowWaitSec)
+                {
+                    // No opponents to chase: fall back to defense.
+                    return ParentFSM.CreateStateTransition(DefensiveDemoStateName);
                 }
 
                 return null;
