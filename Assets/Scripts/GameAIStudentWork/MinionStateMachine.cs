@@ -404,10 +404,6 @@ namespace GameAIStudent
                 if (!Minion.HasBall)
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
 
-                // Survival first: don't get tagged while lining up a rescue throw.
-                if (DodgeIfThreatened())
-                    return null;
-
                 if (buddy == null || !buddy.CanBeRescued)
                 {
                     if (!FindRescuableTeammate(out buddy))
@@ -433,6 +429,8 @@ namespace GameAIStudent
                         return ParentFSM.CreateStateTransition(CollectBallStateName);
                 }
 
+                // Couldn't release the rescue throw yet (still aiming): dodge while we turn.
+                DodgeIfThreatened();
                 return null;
             }
         }
@@ -457,20 +455,22 @@ namespace GameAIStudent
                 if (!Minion.HasBall)
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
 
-                // Survival first: dodge an incoming ball even if we have a shot lined up.
-                if (DodgeIfThreatened())
-                    return null;
-
                 if (FindBestThrowTarget(out var dir, out var speedNorm, out var interceptPos, out var interceptT))
                 {
                     enterTime = Time.timeSinceLevelLoad; // making progress; keep trying to land this shot
                     Minion.FaceTowardsForThrow(interceptPos);
 
+                    // Throwing is our edge: fire the instant we're aligned (don't dodge it away).
                     if (Minion.ThrowBall(dir, speedNorm))
                         return ParentFSM.CreateStateTransition(CollectBallStateName);
 
-                    return null; // still turning to align; try again next frame
+                    // Not aligned yet: dodge an incoming ball while we keep turning to aim.
+                    DodgeIfThreatened();
+                    return null;
                 }
+
+                // No shot available: survival first.
+                DodgeIfThreatened();
 
                 // Rescue a teammate if one needs help and we can't shoot anyone.
                 if (FindRescuableTeammate(out var buddy))
