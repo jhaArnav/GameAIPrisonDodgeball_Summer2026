@@ -38,12 +38,11 @@ namespace GameAIStudent
         public static float MaxAllowedThrowPositionError = (0.25f + 0.5f) * 0.99f;
 
         // ---- Tunable strategy parameters (adjust after head-to-head test runs) ----
-        // Don't take shots whose ball flight time exceeds this (long shots are easy to dodge).
+        // Max ball flight time for a shot when balls are plentiful (aggressive).
         const float ThrowMaxInterceptT = 1.6f;
-        // Distance within which an opponent holding a ball and facing us is a throw threat.
-        const float ThreatRange = 18f;
-        // How directly (deg) an opponent must face us to be considered aiming at us.
-        const float ThreatAngleDeg = 22f;
+        // Max ball flight time when balls are scarce: only near-certain shots, to preserve
+        // possession (a missed throw hands the ball to the opponent).
+        const float ScarceThrowMaxInterceptT = 1.0f;
         // If we hold a ball but can't find a shot for this long, reposition / re-plan.
         const float MaxThrowWaitSec = 2.5f;
         // How often a ball-less defender re-picks a position (keeps it mobile, harder to hit).
@@ -52,6 +51,13 @@ namespace GameAIStudent
         const float DefenseLateralSpacing = 2.5f;
         // Approximate dodgeball radius, used to space the twin occlusion rays.
         const float BallRadius = 0.25f;
+        // ---- Incoming-projectile dodging ----
+        // Minimum speed for a loose enemy ball to count as a thrown projectile (vs. carried).
+        const float MinThrownBallSpeed = 6f;
+        // How far ahead (sec) we look for a ball's closest approach to us.
+        const float BallDodgeHorizon = 0.9f;
+        // If a ball's closest approach is within this radius, dodge it.
+        const float BallDodgeRadius = 1.1f;
 
 
         // TeamShare ("blackboard") extended with a per-frame cache of opponent info so the
@@ -167,6 +173,7 @@ namespace GameAIStudent
 
                 bool found = false;
                 float bestT = float.MaxValue;
+                float maxT = CurrentThrowMaxT;
 
                 foreach (var o in opps)
                 {
@@ -176,7 +183,7 @@ namespace GameAIStudent
                     if (!TryAim(o, out var d, out var sn, out var ip, out var t))
                         continue;
 
-                    if (t > ThrowMaxInterceptT)
+                    if (t > maxT)
                         continue;
 
                     if (t < bestT)
@@ -193,39 +200,76 @@ namespace GameAIStudent
                 return found;
             }
 
-            // Detect an incoming throw threat: an opponent holding a ball, close, and facing us.
-            // Returns the direction to dodge.
-            protected bool IncomingThreat(out MinionScript.EvasionDirection evadeDir)
+            // Are balls scarce relative to team size? If so, possession is precious and we
+            // should only spend a throw on a near-certain shot.
+            protected bool BallsScarce
+            {
+                get
+                {
+                    int teamSize = (TeamData != null) ? TeamData.TeamSize : Mgr.TeamSize;
+                    return Mgr.TotalBalls <= teamSize;
+                }
+            }
+
+            protected float CurrentThrowMaxT => BallsScarce ? ScarceThrowMaxInterceptT : ThrowMaxInterceptT;
+
+            // Detect an incoming THROWN enemy ball on a collision course and pick a dodge direction.
+            // We react to the actual projectile (not an opponent merely holding a ball) so we don't
+            // waste the evade cooldown early.
+            protected bool IncomingProjectile(out MinionScript.EvasionDirection evadeDir)
             {
                 evadeDir = MinionScript.EvasionDirection.Brake;
 
-                var opps = Shared?.OppInfo;
-                if (opps == null)
+                var balls = TeamData?.DBInfo;
+                if (balls == null)
                     return false;
 
                 Vector3 myPos = Minion.transform.position;
 
-                foreach (var o in opps)
+                foreach (var b in balls)
                 {
-                    if (!o.HasBall || o.IsPrisoner || o.IsFreedPrisoner)
+                    if (b.IsHeld)
+                        continue;
+                    // Only enemy balls threaten us; ignore our own team's and loose neutral balls.
+                    if (b.State != PrisonDodgeballManager.DodgeballState.Opponent)
                         continue;
 
-                    Vector3 toMe = myPos - o.Pos;
-                    float dist = toMe.magnitude;
-                    if (dist > ThreatRange || dist < 1e-3f)
-                        continue;
+                    Vector3 vel = b.Vel; vel.y = 0f;
+                    float speed = vel.magnitude;
+                    if (speed < MinThrownBallSpeed)
+                        continue; // carried or barely moving, not a throw
 
-                    if (Vector3.Angle(o.Forward, toMe) < ThreatAngleDeg)
+                    Vector3 rel = b.Pos - myPos; rel.y = 0f; // me -> ball
+                    // Time of the ball line's closest approach to us.
+                    float tStar = -Vector3.Dot(rel, vel) / (speed * speed);
+                    if (tStar < 0f || tStar > BallDodgeHorizon)
+                        continue; // moving away, or too far in the future
+
+                    Vector3 closest = rel + vel * tStar; // me -> ball at closest approach
+                    if (closest.magnitude < BallDodgeRadius)
                     {
-                        // Dodge perpendicular to the incoming line.
-                        Vector3 cross = Vector3.Cross(o.Forward, toMe);
-                        evadeDir = (cross.y >= 0f)
+                        // Step away from the ball's path. Map that world direction to the
+                        // minion's Left (-right) / Right (+right).
+                        Vector3 away = -closest;
+                        if (away.sqrMagnitude < 1e-4f)
+                            away = Vector3.Cross(Vector3.up, vel.normalized);
+
+                        float d = Vector3.Dot(away.normalized, Minion.transform.right);
+                        evadeDir = (d >= 0f)
                             ? MinionScript.EvasionDirection.Right
                             : MinionScript.EvasionDirection.Left;
                         return true;
                     }
                 }
 
+                return false;
+            }
+
+            // Dodge an incoming projectile if there is one. Returns true if an evade was performed.
+            protected bool DodgeIfThreatened()
+            {
+                if (IncomingProjectile(out var ev))
+                    return Minion.Evade(ev, 1f);
                 return false;
             }
         }
@@ -257,6 +301,8 @@ namespace GameAIStudent
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
+                DodgeIfThreatened();
+
                 // could pick up a ball accidentally before getting to desired ball
                 if (Minion.HasBall)
                     return ParentFSM.CreateStateTransition(GoToThrowSpotStateName);
@@ -308,6 +354,8 @@ namespace GameAIStudent
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
+                DodgeIfThreatened();
+
                 if (!Minion.HasBall)
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
 
@@ -348,6 +396,10 @@ namespace GameAIStudent
             {
                 if (!Minion.HasBall)
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
+
+                // Survival first: don't get tagged while lining up a rescue throw.
+                if (DodgeIfThreatened())
+                    return null;
 
                 if (buddy == null || !buddy.CanBeRescued)
                 {
@@ -398,6 +450,10 @@ namespace GameAIStudent
                 if (!Minion.HasBall)
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
 
+                // Survival first: dodge an incoming ball even if we have a shot lined up.
+                if (DodgeIfThreatened())
+                    return null;
+
                 if (FindBestThrowTarget(out var dir, out var speedNorm, out var interceptPos, out var interceptT))
                 {
                     enterTime = Time.timeSinceLevelLoad; // making progress; keep trying to land this shot
@@ -408,10 +464,6 @@ namespace GameAIStudent
 
                     return null; // still turning to align; try again next frame
                 }
-
-                // No clean shot right now. Dodge if threatened while we wait.
-                if (IncomingThreat(out var ev))
-                    Minion.Evade(ev, 1f);
 
                 // Rescue a teammate if one needs help and we can't shoot anyone.
                 if (FindRescuableTeammate(out var buddy))
@@ -465,15 +517,14 @@ namespace GameAIStudent
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
+                // Survive: dodge incoming throws first.
+                DodgeIfThreatened();
+
                 if (Minion.HasBall)
                     return ParentFSM.CreateStateTransition(GoToThrowSpotStateName);
 
                 if (FindClosestAvailableDodgeball(out _))
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
-
-                // Survive: dodge incoming throws.
-                if (IncomingThreat(out var ev))
-                    Minion.Evade(ev, 1f);
 
                 // Stay mobile and re-spread periodically so we're not a sitting target.
                 if (Minion.ReachedTarget() || Time.timeSinceLevelLoad - lastReposition > DefenseRepositionSec)
@@ -580,6 +631,8 @@ namespace GameAIStudent
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
+                DodgeIfThreatened();
+
                 if (Minion.ReachedTarget())
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
 
