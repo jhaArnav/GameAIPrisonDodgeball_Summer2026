@@ -1,4 +1,4 @@
-﻿// compile_check
+// compile_check
 // Remove the line above if you are submitting to GradeScope for a grade. But leave it if you only want to check
 // that your code compiles and the autograder can access your public methods.
 
@@ -37,61 +37,212 @@ namespace GameAIStudent
         // For throws...
         public static float MaxAllowedThrowPositionError = (0.25f + 0.5f) * 0.99f;
 
-        // Example of extending TeamShare with custom data ("blackboard" style).
-        // Add your own fields/methods here. In states, access it via GetTeamShare<ExampleTeamShare>().
-        class ExampleTeamShare : TeamShare
-        {
-            // Example data: a label and a timestamp of when the share was created.
-            public string TeamLabel { get; private set; }
-            public float CreatedAtTime { get; private set; }
+        // ---- Tunable strategy parameters (adjust after head-to-head test runs) ----
+        // Don't take shots whose ball flight time exceeds this (long shots are easy to dodge).
+        const float ThrowMaxInterceptT = 1.6f;
+        // Distance within which an opponent holding a ball and facing us is a throw threat.
+        const float ThreatRange = 18f;
+        // How directly (deg) an opponent must face us to be considered aiming at us.
+        const float ThreatAngleDeg = 22f;
+        // If we hold a ball but can't find a shot for this long, reposition / re-plan.
+        const float MaxThrowWaitSec = 2.5f;
+        // How often a ball-less defender re-picks a position (keeps it mobile, harder to hit).
+        const float DefenseRepositionSec = 2.0f;
+        // Lateral spacing between defenders so they spread out instead of clustering.
+        const float DefenseLateralSpacing = 2.5f;
+        // Approximate dodgeball radius, used to space the twin occlusion rays.
+        const float BallRadius = 0.25f;
 
-            public ExampleTeamShare(PrisonDodgeballManager.Team team, int teamSize, int numBalls)
+
+        // TeamShare ("blackboard") extended with a per-frame cache of opponent info so the
+        // whole team shares a single GetAllOpponentInfo() query each frame.
+        class MyTeamShare : TeamShare
+        {
+            PrisonDodgeballManager.OpponentInfo[] oppInfo;
+            float timeOfOppQuery = float.MinValue;
+
+            public MyTeamShare(PrisonDodgeballManager.Team team, int teamSize, int numBalls)
                 : base(team, teamSize, numBalls)
             {
-                TeamLabel = $"Team {team} Share";
-                CreatedAtTime = Time.timeSinceLevelLoad;
+                // Opponent count equals our team size (teams are always equal).
+                oppInfo = new PrisonDodgeballManager.OpponentInfo[teamSize];
+            }
+
+            public PrisonDodgeballManager.OpponentInfo[] OppInfo
+            {
+                get
+                {
+                    var t = Time.timeSinceLevelLoad;
+                    if (t != timeOfOppQuery)
+                    {
+                        timeOfOppQuery = t;
+                        PrisonDodgeballManager.Instance.GetAllOpponentInfo(Team, ref oppInfo);
+                    }
+                    return oppInfo;
+                }
             }
         }
 
-        // Override this method to provide your own TeamShare subtype with extra data.
         protected override TeamShare CreateTeamShare(PrisonDodgeballManager.Team team, int teamSize, int numBalls)
         {
-            return new ExampleTeamShare(team, teamSize, numBalls);
+            return new MyTeamShare(team, teamSize, numBalls);
         }
 
-        // Example of extending the base state types for shared helpers.
-        // Add common state utilities here and inherit from MinionStateCommon below.
+
+        // Common base for all states: shared targeting / defense helpers.
         abstract class MinionStateCommon : MinionState
         {
-            // Example helper for accessing custom TeamShare data in any state.
-            protected ExampleTeamShare Shared => GetTeamShare<ExampleTeamShare>();
+            protected MyTeamShare Shared => GetTeamShare<MyTeamShare>();
+
+            // Layer mask that ignores minions, dodgeballs, and the navmesh carver so an
+            // occlusion raycast only trips on real geometry (walls, obstacles).
+            protected int ThrowLineMask()
+            {
+                int carverMask = ~(1 << Mgr.NavMeshCarverLayerIndex);
+                int minionMask = ~(1 << Mgr.MinionTeamBLayerIndex) & ~(1 << Mgr.MinionTeamALayerIndex);
+                int ballMask = ~(1 << Mgr.BallTeamALayerIndex) & ~(1 << Mgr.BallTeamBLayerIndex);
+                return Physics.AllLayers & carverMask & ballMask & minionMask;
+            }
+
+            // True if real geometry blocks the straight line from -> to (twin rays a ball-width apart).
+            protected bool Occluded(Vector3 from, Vector3 to)
+            {
+                Vector3 delta = to - from;
+                float dist = delta.magnitude;
+                if (dist < 1e-4f)
+                    return false;
+
+                Vector3 dir = delta / dist;
+                Vector3 perp = Vector3.Cross(dir, Vector3.up);
+                if (perp.sqrMagnitude < 1e-6f)
+                    perp = Vector3.Cross(dir, Vector3.forward);
+                perp = perp.normalized * BallRadius;
+
+                int mask = ThrowLineMask();
+                return Physics.Raycast(from + perp, dir, dist, mask) ||
+                       Physics.Raycast(from - perp, dir, dist, mask);
+            }
+
+            // Compute a ballistic solution to hit a single opponent. Returns false if unreachable
+            // or the line of fire is blocked.
+            protected bool TryAim(PrisonDodgeballManager.OpponentInfo opp,
+                out Vector3 dir, out float speedNorm, out Vector3 interceptPos, out float interceptT)
+            {
+                dir = Vector3.forward;
+                speedNorm = 1f;
+                interceptPos = opp.Pos;
+                interceptT = 0f;
+
+                bool ok = ThrowMethods.PredictThrow(
+                    Minion.HeldBallPosition, Minion.ThrowSpeed, Physics.gravity,
+                    opp.Pos, opp.Vel, opp.Forward, MaxAllowedThrowPositionError,
+                    out var pDir, out var pSpeed, out var pT, out var altT);
+
+                if (!ok || pT <= 0f)
+                    return false;
+
+                interceptT = pT;
+                interceptPos = opp.Pos + opp.Vel * pT;
+                dir = pDir;
+                speedNorm = Mathf.Min(1f, pSpeed / Minion.ThrowSpeed);
+
+                if (Occluded(Minion.HeldBallPosition, interceptPos))
+                    return false;
+
+                return true;
+            }
+
+            // Pick the best (quickest, hardest-to-dodge) valid shot among all live opponents.
+            protected bool FindBestThrowTarget(
+                out Vector3 dir, out float speedNorm, out Vector3 interceptPos, out float interceptT)
+            {
+                dir = Vector3.forward;
+                speedNorm = 1f;
+                interceptPos = Minion.transform.position;
+                interceptT = 0f;
+
+                var opps = Shared?.OppInfo;
+                if (opps == null)
+                    return false;
+
+                bool found = false;
+                float bestT = float.MaxValue;
+
+                foreach (var o in opps)
+                {
+                    if (o.IsPrisoner || o.IsFreedPrisoner)
+                        continue;
+
+                    if (!TryAim(o, out var d, out var sn, out var ip, out var t))
+                        continue;
+
+                    if (t > ThrowMaxInterceptT)
+                        continue;
+
+                    if (t < bestT)
+                    {
+                        bestT = t;
+                        dir = d;
+                        speedNorm = sn;
+                        interceptPos = ip;
+                        interceptT = t;
+                        found = true;
+                    }
+                }
+
+                return found;
+            }
+
+            // Detect an incoming throw threat: an opponent holding a ball, close, and facing us.
+            // Returns the direction to dodge.
+            protected bool IncomingThreat(out MinionScript.EvasionDirection evadeDir)
+            {
+                evadeDir = MinionScript.EvasionDirection.Brake;
+
+                var opps = Shared?.OppInfo;
+                if (opps == null)
+                    return false;
+
+                Vector3 myPos = Minion.transform.position;
+
+                foreach (var o in opps)
+                {
+                    if (!o.HasBall || o.IsPrisoner || o.IsFreedPrisoner)
+                        continue;
+
+                    Vector3 toMe = myPos - o.Pos;
+                    float dist = toMe.magnitude;
+                    if (dist > ThreatRange || dist < 1e-3f)
+                        continue;
+
+                    if (Vector3.Angle(o.Forward, toMe) < ThreatAngleDeg)
+                    {
+                        // Dodge perpendicular to the incoming line.
+                        Vector3 cross = Vector3.Cross(o.Forward, toMe);
+                        evadeDir = (cross.y >= 0f)
+                            ? MinionScript.EvasionDirection.Right
+                            : MinionScript.EvasionDirection.Left;
+                        return true;
+                    }
+                }
+
+                return false;
+            }
         }
 
-        // Generic variants so parameterized states can share helpers too.
         abstract class MinionStateCommon<S0> : MinionState<S0>
         {
-            protected ExampleTeamShare Shared => GetTeamShare<ExampleTeamShare>();
+            protected MyTeamShare Shared => GetTeamShare<MyTeamShare>();
         }
 
-        abstract class MinionStateCommon<S0, S1> : MinionState<S0, S1>
-        {
-            protected ExampleTeamShare Shared => GetTeamShare<ExampleTeamShare>();
-        }
 
         // Go get a ball!
         class CollectBallState : MinionStateCommon
         {
-            public override string Name => CollectBallStateName;
-
             bool hasDestBall = false;
             PrisonDodgeballManager.DodgeballInfo destBall;
 
-
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-
-            }
+            public override string Name => CollectBallStateName;
 
             public override void Enter()
             {
@@ -100,25 +251,17 @@ namespace GameAIStudent
                 if (FindClosestAvailableDodgeball(out destBall))
                 {
                     hasDestBall = true;
-                    Minion.GoTo(destBall.Pos);
+                    Minion.GoTo(destBall.NavMeshPos);
                 }
-
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
                 // could pick up a ball accidentally before getting to desired ball
                 if (Minion.HasBall)
                     return ParentFSM.CreateStateTransition(GoToThrowSpotStateName);
 
-                var dbInfo = TeamData.DBInfo;
-
+                var dbInfo = TeamData?.DBInfo;
                 if (dbInfo == null)
                     return null;
 
@@ -127,30 +270,23 @@ namespace GameAIStudent
                     destBall = dbInfo[destBall.Index];
 
                     if (destBall.IsHeld || destBall.State != PrisonDodgeballManager.DodgeballState.Neutral || !destBall.Reachable)
-                    {
                         hasDestBall = false;
-                    }
-
                 }
 
                 if (!hasDestBall)
                 {
                     if (FindClosestAvailableDodgeball(out destBall))
-                    {
                         hasDestBall = true;
-
-                    }
                 }
 
                 if (hasDestBall)
                 {
-                    // The ball might be moving, so keep updating. GoTo() is smart enough
-                    // to not keep performing full A* if it doesn't need to, so safe to call often.
+                    // The ball might be moving, so keep updating. GoTo() avoids redundant A*.
                     Minion.GoTo(destBall.NavMeshPos);
                 }
                 else
                 {
-                    // No ball, so focus on defense
+                    // No ball to grab, so focus on defense.
                     return ParentFSM.CreateStateTransition(DefensiveDemoStateName);
                 }
 
@@ -159,118 +295,82 @@ namespace GameAIStudent
         }
 
 
-        // This state gets the minion close to the enemy for a throw (or a rescue of a buddy)
+        // Get into a forward position to throw (or rescue a jailed teammate).
         class GoToThrowSpotState : MinionStateCommon
         {
             public override string Name => GoToThrowSpotStateName;
 
-
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
-
             public override void Enter()
             {
                 base.Enter();
-
                 Minion.GoTo(Mgr.TeamAdvance(Team).position);
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
-                // just in case something bad happened
                 if (!Minion.HasBall)
-                {
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
-                }
+
+                // If we already have a clean shot on the way, take it immediately.
+                if (FindBestThrowTarget(out _, out _, out _, out _))
+                    return ParentFSM.CreateStateTransition(ThrowBallStateName);
 
                 if (Minion.ReachedTarget())
                 {
                     if (FindRescuableTeammate(out var m))
-                    {
                         return ParentFSM.CreateStateTransition<MinionScript>(RescueStateName, m, true);
-                    }
-                    else
-                        return ParentFSM.CreateStateTransition(ThrowBallStateName);
+
+                    return ParentFSM.CreateStateTransition(ThrowBallStateName);
                 }
 
+                Minion.GoTo(Mgr.TeamAdvance(Team).position);
                 return null;
             }
         }
 
 
-        // Rescue a buddy
+        // Rescue a jailed buddy by throwing them a ball.
         class RescueState : MinionStateCommon<MinionScript>
         {
-            public override string Name => RescueStateName;
-
             MinionScript buddy;
 
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
+            public override string Name => RescueStateName;
 
             public override void Enter(MinionScript m)
             {
                 base.Enter(m);
-
                 buddy = m;
-
-                Minion.FaceTowards(buddy.transform.position);
-
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
+                if (buddy != null)
+                    Minion.FaceTowards(buddy.transform.position);
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
-                // just in case something bad happened
                 if (!Minion.HasBall)
-                {
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
-                }
 
                 if (buddy == null || !buddy.CanBeRescued)
                 {
-
                     if (!FindRescuableTeammate(out buddy))
-                    {
                         buddy = null;
-                    }
-
                 }
 
-                // Nothing to do without buddy in prison...
                 if (buddy == null)
-                    // we should have a ball still...
                     return ParentFSM.CreateStateTransition(ThrowBallStateName);
 
+                var canThrow = ThrowMethods.PredictThrow(
+                    Minion.HeldBallPosition, Minion.ThrowSpeed, Physics.gravity,
+                    buddy.transform.position, buddy.Velocity, buddy.transform.forward,
+                    MaxAllowedThrowPositionError,
+                    out var dir, out var speed, out var interceptT, out var altT);
 
-                var canThrow = ThrowMethods.PredictThrow(Minion.HeldBallPosition, Minion.ThrowSpeed, Physics.gravity, buddy.transform.position,
-                        buddy.Velocity, buddy.transform.forward, MaxAllowedThrowPositionError,
-                        out var univVDir, out var speedScalar, out var interceptT, out var altT);
-
-
-                var intercept = Minion.HeldBallPosition + univVDir * speedScalar * interceptT;
+                var intercept = Minion.HeldBallPosition + dir * speed * interceptT;
                 Minion.FaceTowardsForThrow(intercept);
 
                 if (canThrow)
                 {
-                    var speedNorm = speedScalar / Minion.ThrowSpeed;
-
-                    if (Minion.ThrowBall(univVDir, speedNorm))
+                    var speedNorm = Mathf.Min(1f, speed / Minion.ThrowSpeed);
+                    if (Minion.ThrowBall(dir, speedNorm))
                         return ParentFSM.CreateStateTransition(CollectBallStateName);
                 }
 
@@ -279,219 +379,107 @@ namespace GameAIStudent
         }
 
 
-        // Throw the ball at the enemy
+        // Throw the ball at the best available enemy. Aggressive but accurate.
         class ThrowBallState : MinionStateCommon
         {
+            float enterTime;
+
             public override string Name => ThrowBallStateName;
-
-            int opponentIndex = -1;
-            PrisonDodgeballManager.OpponentInfo opponentInfo;
-            bool hasOpponent = false;
-
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
-
 
             public override void Enter()
             {
                 base.Enter();
-
-                if (Mgr.FindClosestNonPrisonerOpponentIndex(Minion.transform.position, Team, out opponentIndex))
-                {
-                    if (hasOpponent = Mgr.GetOpponentInfo(Team, opponentIndex, out opponentInfo))
-                    {
-                        Minion.FaceTowards(opponentInfo.Pos);
-                    }
-                }
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
+                enterTime = Time.timeSinceLevelLoad;
+                Minion.Stop();
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-                // just in case something bad happened
                 if (!Minion.HasBall)
-                {
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
-                }
 
-                // Check if opponent still valid
-                if (
-                    !(hasOpponent = Mgr.GetOpponentInfo(Team, opponentIndex, out opponentInfo)) ||
-                    opponentInfo.IsPrisoner || opponentInfo.IsFreedPrisoner)
+                if (FindBestThrowTarget(out var dir, out var speedNorm, out var interceptPos, out var interceptT))
                 {
+                    enterTime = Time.timeSinceLevelLoad; // making progress; keep trying to land this shot
+                    Minion.FaceTowardsForThrow(interceptPos);
 
-                    if (Mgr.FindClosestNonPrisonerOpponentIndex(Minion.transform.position, Team, out opponentIndex))
-                    {
-                        hasOpponent = Mgr.GetOpponentInfo(Team, opponentIndex, out opponentInfo);
-                    }
-                }
-
-                // Nothing to do without opponent...
-                if (!hasOpponent)
-                    return ParentFSM.CreateStateTransition(DefensiveDemoStateName);
-
-
-                int navmask = NavMesh.AllAreas;
-
-
-                if (!Mgr.ThrowTestEnabled || Mgr.ThrowTestRestrictTargetToSideEnabled)
-                {
-                    int oppTeamNavMask = 0;
-
-                    if (Minion.Team == PrisonDodgeballManager.Team.TeamA)
-                        oppTeamNavMask = Mgr.TeamBNavMeshAreaIndex;
-                    else
-                        oppTeamNavMask = Mgr.TeamANavMeshAreaIndex;
-
-                    navmask = (1 << Mgr.NeutralNavMeshAreaIndex) | (1 << oppTeamNavMask) |
-                                    (1 << Mgr.WalkableNavMeshAreaIndex);
-
-                }
-
-
-                var selection = ShotSelection.SelectThrow(Minion, opponentInfo, navmask, MaxAllowedThrowPositionError, Time.deltaTime, out var projectileDir, out var projectileSpeed, out var interceptT, out var interceptPos);
-
-                if (selection == ShotSelection.SelectThrowReturn.DoThrow)
-                {
-                    var speedFactor = Mathf.Min(1f, projectileSpeed / Minion.ThrowSpeed);
-                    var throwRes = Minion.ThrowBall(projectileDir, speedFactor);
-
-                    if (throwRes)
-                    {
-                        Minion.FaceTowardsForThrow(interceptPos);
-
+                    if (Minion.ThrowBall(dir, speedNorm))
                         return ParentFSM.CreateStateTransition(CollectBallStateName);
-                    }
-                    else
-                    {
-                        //Debug.Log("COULDN'T THROW!");
-                    }
+
+                    return null; // still turning to align; try again next frame
                 }
 
-                Vector3 intercept;
-                if (selection == ShotSelection.SelectThrowReturn.NoThrowTargettingFailed)
-                    intercept = opponentInfo.Pos;
-                else
-                    intercept = interceptPos;
+                // No clean shot right now. Dodge if threatened while we wait.
+                if (IncomingThreat(out var ev))
+                    Minion.Evade(ev, 1f);
 
-                Minion.FaceTowardsForThrow(intercept);
+                // Rescue a teammate if one needs help and we can't shoot anyone.
+                if (FindRescuableTeammate(out var buddy))
+                    return ParentFSM.CreateStateTransition<MinionScript>(RescueStateName, buddy, true);
 
+                // Stuck too long with no target: reposition to look for a better angle.
+                if (Time.timeSinceLevelLoad - enterTime > MaxThrowWaitSec)
+                    return ParentFSM.CreateStateTransition(GoToThrowSpotStateName);
+
+                // Keep facing the nearest opponent so we're ready the instant a shot opens up.
+                if (Mgr.FindClosestNonPrisonerOpponentIndex(Minion.transform.position, Team, out var oi) &&
+                    Mgr.GetOpponentInfo(Team, oi, out var info))
+                {
+                    Minion.FaceTowardsForThrow(info.Pos);
+                }
 
                 return null;
             }
         }
 
 
-        // A not very effective defensive strategy. Mainly a demonstration of calling
-        // Minion.Evade()
+        // Defensive behavior for ball-less minions: spread out, stay mobile, dodge throws.
         class DefensiveDemoState : MinionStateCommon
         {
+            float lastReposition;
+
             public override string Name => DefensiveDemoStateName;
 
-            float lastEvade;
-            float evadeWaitTimeSec;
-            bool doPause = false;
-            float pauseStart;
-            float pauseDuration;
-
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
+            // A spread-out position along the home line based on this minion's spawn index.
+            Vector3 DefensiveSpot()
             {
-                base.Init(parentFSM, minFSMData);
+                Vector3 home = Mgr.TeamHome(Team).position;
+                Vector3 fwd = (Mgr.TeamCenter(Team).position - home);
+                fwd.y = 0f;
+                fwd = fwd.sqrMagnitude > 1e-4f ? fwd.normalized : Vector3.forward;
+                Vector3 right = Vector3.Cross(Vector3.up, fwd);
+
+                int teamSize = Mathf.Max(1, TeamData != null ? TeamData.TeamSize : 1);
+                float lateral = (Minion.SpawnIndex - (teamSize - 1) * 0.5f) * DefenseLateralSpacing;
+                float jitter = (Random.value - 0.5f) * 2f;
+
+                return home + right * lateral + fwd * (1.5f + jitter);
             }
-
-
-            protected bool RandomGoTo()
-            {
-                var r = Minion.GoTo(Mgr.TeamHome(Team).position + 6f * (new Vector3(Random.value, 0f, Random.value)));
-
-                if (!r)
-                {
-                    Debug.LogWarning("Could not GOTO in DefenseDemoState");
-                }
-
-                return r;
-            }
-
-
 
             public override void Enter()
             {
                 base.Enter();
-
-                RandomGoTo();
-
-                lastEvade = Time.timeSinceLevelLoad;
-
-                evadeWaitTimeSec = 2f * Minion.EvadeCoolDownTimeSec + 0.1f;
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
+                Minion.GoTo(DefensiveSpot());
+                lastReposition = Time.timeSinceLevelLoad;
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
                 if (Minion.HasBall)
                     return ParentFSM.CreateStateTransition(GoToThrowSpotStateName);
 
-                PrisonDodgeballManager.DodgeballInfo ball;
-
-                if (FindClosestAvailableDodgeball(out ball))
-                {
+                if (FindClosestAvailableDodgeball(out _))
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
-                }
 
-                if (!doPause && Minion.ReachedTarget())
+                // Survive: dodge incoming throws.
+                if (IncomingThreat(out var ev))
+                    Minion.Evade(ev, 1f);
+
+                // Stay mobile and re-spread periodically so we're not a sitting target.
+                if (Minion.ReachedTarget() || Time.timeSinceLevelLoad - lastReposition > DefenseRepositionSec)
                 {
-                    pauseStart = Time.timeSinceLevelLoad;
-                    doPause = true;
-                    pauseDuration = Random.value * 3f;
-                }
-
-                if (doPause)
-                {
-                    Minion.FaceTowards(Mgr.TeamPrison(Team).position);
-
-                    if (Time.timeSinceLevelLoad - pauseStart >= pauseDuration)
-                    {
-                        doPause = false;
-                        RandomGoTo();
-                    }
-                }
-                else if (Time.timeSinceLevelLoad - lastEvade >= evadeWaitTimeSec)
-                {
-
-                    lastEvade = Time.timeSinceLevelLoad;
-
-                    var r = Random.Range(0, 3);
-
-                    MinionScript.EvasionDirection ev;
-
-                    switch (r)
-                    {
-                        case 0:
-                            ev = MinionScript.EvasionDirection.Brake;
-                            break;
-                        case 1:
-                            ev = MinionScript.EvasionDirection.Left;
-                            break;
-                        case 2:
-                            ev = MinionScript.EvasionDirection.Right;
-                            break;
-                        default:
-                            ev = MinionScript.EvasionDirection.Brake;
-                            break;
-                    }
-
-                    Minion.Evade(ev, Random.Range(0.6f, 1.0f));
+                    Minion.GoTo(DefensiveSpot());
+                    lastReposition = Time.timeSinceLevelLoad;
                 }
 
                 return null;
@@ -499,41 +487,24 @@ namespace GameAIStudent
         }
 
 
-        // Go directly to jail. Do not pass go. Do not collect $200 
+        // Go directly to jail. Do not pass go. Do not collect $200
         class GoToPrisonState : MinionStateCommon
         {
-            public override string Name => GoToPrisonStateName;
-
             int waypointIndex = 0;
 
-
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
-
+            public override string Name => GoToPrisonStateName;
 
             public override void Enter()
             {
                 base.Enter();
-
                 waypointIndex = 0;
-
                 Minion.GoTo(Mgr.TeamGutterEntranceLeft(Team).position);
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
                 if (!Minion.IsPrisoner)
-                {
                     return ParentFSM.CreateStateTransition(LeavePrisonStateName);
-                }
 
                 if (Minion.ReachedTarget())
                 {
@@ -549,6 +520,7 @@ namespace GameAIStudent
                     }
                     else
                     {
+                        // In prison: face the field so a rescue throw can reach us.
                         Minion.FaceTowards(Mgr.TeamHome(Team).position);
                     }
                 }
@@ -557,36 +529,23 @@ namespace GameAIStudent
             }
         }
 
-        // Free! 
+
+        // Freed! Exit via the gutter back to the field.
         class LeavePrisonState : MinionStateCommon
         {
-            public override string Name => LeavePrisonStateName;
-
             int waypointIndex = 0;
 
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
-
+            public override string Name => LeavePrisonStateName;
 
             public override void Enter()
             {
                 base.Enter();
-
                 waypointIndex = 0;
-
                 Minion.GoTo(Mgr.TeamGutterEndRight(Team).position);
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
                 if (Minion.ReachedTarget())
                 {
                     if (waypointIndex == 0)
@@ -608,45 +567,28 @@ namespace GameAIStudent
         }
 
 
-        // Going home. Maybe after a jailbreak
+        // Heading home (e.g. after a jailbreak).
         class GoHomeState : MinionStateCommon
         {
             public override string Name => GoHomeStateName;
 
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
-
-
             public override void Enter()
             {
                 base.Enter();
-
-                if (!Minion.GoTo(Mgr.TeamHome(Team).position))
-                {
-                    Debug.LogWarning($"Could not find a way home! NavMesh Mask: {Minion.NavMeshMaskToString()}");
-                }
-            }
-
-            public override void Exit(bool globalTransition)
-            {
-
+                Minion.GoTo(Mgr.TeamHome(Team).position);
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
                 if (Minion.ReachedTarget())
-                {
                     return ParentFSM.CreateStateTransition(CollectBallStateName);
-                }
 
                 return null;
             }
         }
 
 
+        // Game over: stand down.
         class RestState : MinionStateCommon
         {
             public override string Name => RestStateName;
@@ -654,11 +596,7 @@ namespace GameAIStudent
             public override void Enter()
             {
                 base.Enter();
-
-                if (!Minion.GoTo(Mgr.TeamHome(Team).position))
-                {
-                    Debug.LogWarning($"Could not find a way home! NavMesh Mask: {Minion.NavMeshMaskToString()}");
-                }
+                Minion.GoTo(Mgr.TeamHome(Team).position);
             }
 
             public override StateTransitionBase<MinionFSMData> Update()
@@ -668,50 +606,27 @@ namespace GameAIStudent
         }
 
 
-        // This is a special state that never exits. It coexists with the current state.
-        // It's always evaluated first. It's only job is supposed to identify global/wildcard
-        // transitions (it shouldn't do anything that modifies anything externally other than
-        // return a desired transition).
+        // Co-state evaluated first every frame. Only initiates wildcard transitions.
         class GlobalTransitionState : MinionStateCommon
         {
+            bool wasPrisoner = false;
+
             public override string Name => GlobalTransitionStateName;
-
-            bool wasPrisioner = false;
-
-            public override void Init(IFiniteStateMachine<MinionFSMData> parentFSM, MinionFSMData minFSMData)
-            {
-                base.Init(parentFSM, minFSMData);
-            }
-
-
-            public override void Enter()
-            {
-                base.Enter();
-            }
-
-            // The global state never exits
-            //public override void Exit(bool globalTransition)
-            //{
-            //}
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
-
                 if (Mgr.IsGameOver && !ParentFSM.CurrentState.Name.Equals(RestStateName))
                 {
                     return ParentFSM.CreateStateTransition(RestStateName);
                 }
-                else if (Minion.IsPrisoner && !wasPrisioner)
+                else if (Minion.IsPrisoner && !wasPrisoner)
                 {
-                    // Just switched to prisoner! Uh oh. Gotta head to prison. :-(
-
-                    wasPrisioner = true;
-
+                    wasPrisoner = true;
                     return ParentFSM.CreateStateTransition(GoToPrisonStateName);
                 }
-                else if (!Minion.IsPrisoner && wasPrisioner)
+                else if (!Minion.IsPrisoner && wasPrisoner)
                 {
-                    wasPrisioner = false;
+                    wasPrisoner = false;
                 }
 
                 return null;
@@ -721,9 +636,6 @@ namespace GameAIStudent
 
         protected override void ConfigureFSM(FiniteStateMachine<MinionFSMData> fsm)
         {
-            // Handles global/wildcard transitions. This state is a co-state that
-            // never exits. Triggered transitions only change the current state.
-            // The global state should only handle initiating transitions
             fsm.SetGlobalTransitionState(new GlobalTransitionState());
 
             fsm.AddState(new CollectBallState(), true);
@@ -735,9 +647,6 @@ namespace GameAIStudent
             fsm.AddState(new GoHomeState());
             fsm.AddState(new RescueState());
             fsm.AddState(new RestState());
-
-            //MinionStateMachine, GameAIStudentWork, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
-            //Debug.Log(this.GetType().AssemblyQualifiedName);
         }
 
     }

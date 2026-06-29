@@ -55,6 +55,28 @@ namespace Tests
             return TestMatch(4, 3);
         }
 
+        // Coverage across the graded space: team sizes 1-5, balls 1-4.
+        // Each must win >= 2/3 of matches vs Glass Joe.
+
+        [UnityTest] [Timeout(PlayMatchTimeOutMS)]
+        public IEnumerator HeadToHead_1v1_1b() { return TestMatch(1, 1); }
+
+        [UnityTest] [Timeout(PlayMatchTimeOutMS)]
+        public IEnumerator HeadToHead_2v2_2b() { return TestMatch(2, 2); }
+
+        [UnityTest] [Timeout(PlayMatchTimeOutMS)]
+        public IEnumerator HeadToHead_3v3_3b() { return TestMatch(3, 3); }
+
+        [UnityTest] [Timeout(PlayMatchTimeOutMS)]
+        public IEnumerator HeadToHead_5v5_4b() { return TestMatch(5, 4); }
+
+        // Stress cases: few balls with a big team, and a single ball duel.
+        [UnityTest] [Timeout(PlayMatchTimeOutMS)]
+        public IEnumerator HeadToHead_5v5_1b() { return TestMatch(5, 1); }
+
+        [UnityTest] [Timeout(PlayMatchTimeOutMS)]
+        public IEnumerator HeadToHead_2v2_1b() { return TestMatch(2, 1); }
+
 
         [Timeout(PlayMatchTimeOutMS)]
         public IEnumerator TestMatch(
