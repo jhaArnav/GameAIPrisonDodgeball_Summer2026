@@ -213,70 +213,77 @@ namespace GameAIStudent
 
             protected float CurrentThrowMaxT => BallsScarce ? ScarceThrowMaxInterceptT : ThrowMaxInterceptT;
 
-            // Detect an incoming THROWN enemy ball on a collision course and pick a dodge direction.
-            // We react to the actual projectile (not an opponent merely holding a ball) so we don't
-            // waste the evade cooldown early.
-            protected bool IncomingProjectile(out MinionScript.EvasionDirection evadeDir)
-            {
-                evadeDir = MinionScript.EvasionDirection.Brake;
-
-                var balls = TeamData?.DBInfo;
-                if (balls == null)
-                    return false;
-
-                Vector3 myPos = Minion.transform.position;
-
-                foreach (var b in balls)
-                {
-                    if (b.IsHeld)
-                        continue;
-                    // Only enemy balls threaten us; ignore our own team's and loose neutral balls.
-                    if (b.State != PrisonDodgeballManager.DodgeballState.Opponent)
-                        continue;
-
-                    Vector3 vel = b.Vel; vel.y = 0f;
-                    float speed = vel.magnitude;
-                    if (speed < MinThrownBallSpeed)
-                        continue; // carried or barely moving, not a throw
-
-                    Vector3 rel = b.Pos - myPos; rel.y = 0f; // me -> ball
-                    // Time of the ball line's closest approach to us.
-                    float tStar = -Vector3.Dot(rel, vel) / (speed * speed);
-                    if (tStar < 0f || tStar > BallDodgeHorizon)
-                        continue; // moving away, or too far in the future
-
-                    Vector3 closest = rel + vel * tStar; // me -> ball at closest approach
-                    if (closest.magnitude < BallDodgeRadius)
-                    {
-                        // Step away from the ball's path. Map that world direction to the
-                        // minion's Left (-right) / Right (+right).
-                        Vector3 away = -closest;
-                        if (away.sqrMagnitude < 1e-4f)
-                            away = Vector3.Cross(Vector3.up, vel.normalized);
-
-                        float d = Vector3.Dot(away.normalized, Minion.transform.right);
-                        evadeDir = (d >= 0f)
-                            ? MinionScript.EvasionDirection.Right
-                            : MinionScript.EvasionDirection.Left;
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-
             // Dodge an incoming projectile if there is one. Returns true if an evade was performed.
             protected bool DodgeIfThreatened()
             {
-                if (IncomingProjectile(out var ev))
-                    return Minion.Evade(ev, 1f);
-                return false;
+                return TryDodgeProjectile(Minion, TeamData);
             }
         }
 
         abstract class MinionStateCommon<S0> : MinionState<S0>
         {
             protected MyTeamShare Shared => GetTeamShare<MyTeamShare>();
+
+            // Generic states share the same projectile dodge via the static helper.
+            protected bool DodgeIfThreatened()
+            {
+                return TryDodgeProjectile(Minion, TeamData);
+            }
+        }
+
+
+        // Detect an incoming THROWN enemy ball on a collision course and dodge it.
+        // Static so both the generic and non-generic state bases can use it. We react to the
+        // actual projectile (not an opponent merely holding a ball) so we don't waste the
+        // evade cooldown early. Returns true if an evade was performed.
+        static bool TryDodgeProjectile(MinionScript minion, TeamShare teamData)
+        {
+            if (minion == null || teamData == null)
+                return false;
+
+            var balls = teamData.DBInfo;
+            if (balls == null)
+                return false;
+
+            Vector3 myPos = minion.transform.position;
+
+            foreach (var b in balls)
+            {
+                if (b.IsHeld)
+                    continue;
+                // Only enemy balls threaten us; ignore our own team's and loose neutral balls.
+                if (b.State != PrisonDodgeballManager.DodgeballState.Opponent)
+                    continue;
+
+                Vector3 vel = b.Vel; vel.y = 0f;
+                float speed = vel.magnitude;
+                if (speed < MinThrownBallSpeed)
+                    continue; // carried or barely moving, not a throw
+
+                Vector3 rel = b.Pos - myPos; rel.y = 0f; // me -> ball
+                // Time of the ball line's closest approach to us.
+                float tStar = -Vector3.Dot(rel, vel) / (speed * speed);
+                if (tStar < 0f || tStar > BallDodgeHorizon)
+                    continue; // moving away, or too far in the future
+
+                Vector3 closest = rel + vel * tStar; // me -> ball at closest approach
+                if (closest.magnitude < BallDodgeRadius)
+                {
+                    // Step away from the ball's path. Map that world direction to the
+                    // minion's Left (-right) / Right (+right).
+                    Vector3 away = -closest;
+                    if (away.sqrMagnitude < 1e-4f)
+                        away = Vector3.Cross(Vector3.up, vel.normalized);
+
+                    float d = Vector3.Dot(away.normalized, minion.transform.right);
+                    var evadeDir = (d >= 0f)
+                        ? MinionScript.EvasionDirection.Right
+                        : MinionScript.EvasionDirection.Left;
+                    return minion.Evade(evadeDir, 1f);
+                }
+            }
+
+            return false;
         }
 
 
