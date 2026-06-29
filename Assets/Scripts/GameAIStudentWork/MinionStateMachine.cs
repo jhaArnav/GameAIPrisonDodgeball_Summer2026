@@ -222,6 +222,32 @@ namespace GameAIStudent
                 return false;
             }
 
+            // Nearest live opponent that is NOT holding a ball (a safe, free target to advance on).
+            protected bool NearestDefenselessOpponentPos(out Vector3 pos)
+            {
+                pos = Minion.transform.position;
+                var opps = Shared?.OppInfo;
+                if (opps == null)
+                    return false;
+
+                Vector3 myPos = Minion.transform.position;
+                float best = float.MaxValue;
+                bool found = false;
+                foreach (var o in opps)
+                {
+                    if (o.HasBall || o.IsPrisoner || o.IsFreedPrisoner)
+                        continue;
+                    float d = Vector3.Distance(o.Pos, myPos);
+                    if (d < best)
+                    {
+                        best = d;
+                        pos = o.Pos;
+                        found = true;
+                    }
+                }
+                return found;
+            }
+
             // Dodge an incoming projectile if there is one. Returns true if an evade was performed.
             protected bool DodgeIfThreatened()
             {
@@ -486,13 +512,26 @@ namespace GameAIStudent
                 if (FindRescuableTeammate(out var buddy))
                     return ParentFSM.CreateStateTransition<MinionScript>(RescueStateName, buddy, true);
 
-                // CLOSE THE DISTANCE toward the nearest opponent to create a short, high-hit-rate
-                // shot. The navmesh clamps us to our legal area (can't enter the opponent's side),
-                // so this advances as far forward as the rules allow. We stop and fire the moment a
-                // shot opens up (handled above). This both raises hit rate and breaks stalemates.
-                if (NearestOpponentPos(out var oppPos))
+                // CLOSE THE DISTANCE to manufacture a short, high-hit-rate shot. The navmesh clamps
+                // us to our legal area, so this advances as far forward as the rules allow; we stop
+                // and fire the instant a shot opens up (handled above). Prefer advancing on a
+                // DEFENSELESS opponent (no counter-throw risk).
+                if (NearestDefenselessOpponentPos(out var softPos))
                 {
-                    Minion.GoTo(oppPos);
+                    Minion.GoTo(softPos);
+                }
+                else if (Mgr.BallsPerTeam <= 1)
+                {
+                    // 1-ball game and every in-range opponent is armed: charging in just trades hits.
+                    // Hold, face, and dodge — bait them into throwing, then punish once they're
+                    // defenseless (the advance-on-defenseless branch above takes over).
+                    if (NearestOpponentPos(out var armedPos))
+                        Minion.FaceTowardsForThrow(armedPos);
+                }
+                else if (NearestOpponentPos(out var anyPos))
+                {
+                    // Ball-rich: keep pressing even armed targets (projectile dodging covers the risk).
+                    Minion.GoTo(anyPos);
                 }
                 else if (Time.timeSinceLevelLoad - enterTime > MaxThrowWaitSec)
                 {
