@@ -200,18 +200,23 @@ namespace GameAIStudent
                 return found;
             }
 
-            // Are balls scarce relative to team size? If so, possession is precious and we
-            // should only spend a throw on a near-certain shot.
-            protected bool BallsScarce
+            // Should we preserve possession (only take near-certain shots)? On a SMALL team with
+            // scarce balls, a missed throw is near-fatal: no teammate to recover the lost ball and
+            // no numbers to pressure with. Big teams stay aggressive — teammates recover misses and
+            // collective pressure converts close games into wins (avoids stalemate ties).
+            protected bool PreservePossession
             {
                 get
                 {
                     int teamSize = (TeamData != null) ? TeamData.TeamSize : Mgr.TeamSize;
-                    return Mgr.TotalBalls <= teamSize;
+                    int balls = Mgr.BallsPerTeam;
+                    // 1v1 is sudden death (no teammate) -> guard the ball unless balls are plentiful.
+                    // 2v2 only when balls are truly scarce (1 ball). Bigger teams always aggressive.
+                    return (teamSize == 1 && balls <= 2) || (teamSize == 2 && balls <= 1);
                 }
             }
 
-            protected float CurrentThrowMaxT => BallsScarce ? ScarceThrowMaxInterceptT : ThrowMaxInterceptT;
+            protected float CurrentThrowMaxT => PreservePossession ? ScarceThrowMaxInterceptT : ThrowMaxInterceptT;
 
             // Dodge an incoming projectile if there is one. Returns true if an evade was performed.
             protected bool DodgeIfThreatened()
