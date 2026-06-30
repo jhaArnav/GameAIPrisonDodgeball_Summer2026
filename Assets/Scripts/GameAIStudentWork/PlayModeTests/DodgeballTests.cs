@@ -18,7 +18,7 @@ namespace Tests
     {
 
         const int matchLenSec = 120;
-        const int numMatches = 30; // confirmation run for true win-rate (restore to 10 after)
+        const int numMatches = 10;
 
         const int PlayMatchTimeOutMS = int.MaxValue; // don't mess with this; add it to new tests
                                                      // as [Timeout(PlayMatchTimeOutMS)] (see below for
