@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="7" result="Passed" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-06-30 01:00:47Z" end-time="2026-06-30 01:01:12Z" duration="25.1129405">
+  <test-suite type="TestSuite" id="1016" name="GameAI_PrisonDodgeball" fullname="GameAI_PrisonDodgeball" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-06-30 01:00:47Z" end-time="2026-06-30 01:01:12Z" duration="25.112941" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1012" name="PlayModeTests.dll" fullname="/Users/arnavjha/Desktop/cs4731/GameAIPrisonDodgeball_Summer2026-main/Library/ScriptAssemblies/PlayModeTests.dll" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-06-30 01:00:47Z" end-time="2026-06-30 01:01:12Z" duration="25.106881" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="45951" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1013" name="Tests" fullname="Tests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-06-30 01:00:47Z" end-time="2026-06-30 01:01:12Z" duration="25.105741" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestFixture" id="1001" name="DodgeballTests" fullname="Tests.DodgeballTests" classname="Tests.DodgeballTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-06-30 01:00:47Z" end-time="2026-06-30 01:01:12Z" duration="25.103934" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-case id="1004" name="HeadToHead_1v1_1b" fullname="Tests.DodgeballTests.HeadToHead_1v1_1b" methodname="HeadToHead_1v1_1b" classname="Tests.DodgeballTests" runstate="Runnable" seed="1030254479" result="Passed" start-time="2026-06-30 01:00:47Z" end-time="2026-06-30 01:00:48Z" duration="1.532542" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=1 ballsPerTeam=1
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=1 jail=0 ball=0 | OPP free=1 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0]
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamA] ME free=1 jail=0 ball=0 | OPP free=1 jail=0 ball=1 | [Team h0 r1][Opponent h1 r1]
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=1 jail=0 ball=0 | OPP free=1 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1]
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamB] ME free=1 jail=0 ball=0 | OPP free=1 jail=0 ball=1 | [Opponent h1 r1][Team h0 r1]
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+]]></output>
+          </test-case>
+          <test-case id="1009" name="HeadToHead_2v2_1b" fullname="Tests.DodgeballTests.HeadToHead_2v2_1b" methodname="HeadToHead_2v2_1b" classname="Tests.DodgeballTests" runstate="Runnable" seed="1108705186" result="Passed" start-time="2026-06-30 01:00:48Z" end-time="2026-06-30 01:00:51Z" duration="3.233769" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=2 ballsPerTeam=1
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0]
+[THROW t=2.7 m=0] iT=0.49 fb=0
+[DIAG t=3.0 team=TeamA] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=1 | [Team h0 r1][Opponent h1 r1]
+[THROW t=4.3 m=0] iT=0.25 fb=0
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1]
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamB] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=1 | [Opponent h1 r1][Team h0 r1]
+[THROW t=4.7 m=0] iT=0.45 fb=0
+[DIAG t=6.0 team=TeamB] ME free=2 jail=0 ball=0 | OPP free=1 jail=1 ball=1 | [Neutral h0 r0][Opponent h1 r1]
+[DIAG t=9.0 team=TeamB] ME free=2 jail=0 ball=0 | OPP free=1 jail=1 ball=0 | [Neutral h0 r0][Neutral h0 r1]
+[DIAG t=12.0 team=TeamB] ME free=2 jail=0 ball=1 | OPP free=1 jail=1 ball=0 | [Neutral h0 r0][Team h1 r1]
+[THROW t=13.9 m=0] iT=0.46 fb=0
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+]]></output>
+          </test-case>
+          <test-case id="1005" name="HeadToHead_2v2_2b" fullname="Tests.DodgeballTests.HeadToHead_2v2_2b" methodname="HeadToHead_2v2_2b" classname="Tests.DodgeballTests" runstate="Runnable" seed="1137838680" result="Passed" start-time="2026-06-30 01:00:51Z" end-time="2026-06-30 01:00:55Z" duration="3.401951" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=2 ballsPerTeam=2
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0]
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[THROW t=2.6 m=1] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamA] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=2 | [Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r1]
+[DIAG t=6.0 team=TeamA] ME free=2 jail=0 ball=0 | OPP free=1 jail=1 ball=0 | [Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0]
+[JAIL t=9.0 m=1 team=TeamA]
+[DIAG t=9.0 team=TeamA] ME free=1 jail=1 ball=0 | OPP free=1 jail=1 ball=0 | [Neutral h0 r0][Opponent h0 r1][Neutral h0 r0][Neutral h0 r0]
+[DIAG t=12.0 team=TeamA] ME free=1 jail=1 ball=0 | OPP free=1 jail=1 ball=0 | [Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r0]
+[THROW t=14.2 m=0] iT=0.48 fb=0
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1]
+[THROW t=2.6 m=1] iT=0.49 fb=0
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamB] ME free=2 jail=0 ball=0 | OPP free=2 jail=0 ball=2 | [Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h0 r1]
+[THROW t=4.6 m=0] iT=0.26 fb=0
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+]]></output>
+          </test-case>
+          <test-case id="1006" name="HeadToHead_3v3_3b" fullname="Tests.DodgeballTests.HeadToHead_3v3_3b" methodname="HeadToHead_3v3_3b" classname="Tests.DodgeballTests" runstate="Runnable" seed="20041554" result="Passed" start-time="2026-06-30 01:00:55Z" end-time="2026-06-30 01:00:57Z" duration="2.420670" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=3 ballsPerTeam=3
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=3 jail=0 ball=0 | OPP free=3 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0]
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[THROW t=2.6 m=1] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamA] ME free=3 jail=0 ball=1 | OPP free=3 jail=0 ball=3 | [Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h1 r1][Opponent h1 r0]
+[THROW t=5.3 m=2] iT=0.49 fb=0
+[THROW t=5.4 m=0] iT=0.25 fb=0
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=3 jail=0 ball=0 | OPP free=3 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1]
+[THROW t=2.6 m=1] iT=0.49 fb=0
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamB] ME free=3 jail=0 ball=1 | OPP free=3 jail=0 ball=3 | [Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r0][Team h1 r1]
+[THROW t=4.4 m=2] iT=0.49 fb=0
+[JAIL t=4.7 m=1 team=TeamB]
+[DIAG t=6.0 team=TeamB] ME free=2 jail=1 ball=0 | OPP free=1 jail=2 ball=1 | [Opponent h0 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Opponent h1 r1][Neutral h0 r1]
+[THROW t=7.2 m=0] iT=0.32 fb=0
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+]]></output>
+          </test-case>
+          <test-case id="1003" name="HeadToHead_4v4_3b" fullname="Tests.DodgeballTests.HeadToHead_4v4_3b" methodname="HeadToHead_4v4_3b" classname="Tests.DodgeballTests" runstate="Runnable" seed="949733306" result="Passed" start-time="2026-06-30 01:00:57Z" end-time="2026-06-30 01:01:01Z" duration="4.102879" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=4 ballsPerTeam=3
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=4 jail=0 ball=0 | OPP free=4 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0]
+[THROW t=2.6 m=0] iT=0.48 fb=0
+[THROW t=2.6 m=1] iT=0.49 fb=0
+[THROW t=2.7 m=3] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamA] ME free=4 jail=0 ball=0 | OPP free=4 jail=0 ball=3 | [Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r0]
+[THROW t=5.1 m=0] iT=0.05 fb=0
+[DIAG t=6.0 team=TeamA] ME free=4 jail=0 ball=0 | OPP free=1 jail=3 ball=0 | [Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0]
+[THROW t=7.8 m=3] iT=0.62 fb=0
+[DIAG t=9.0 team=TeamA] ME free=4 jail=0 ball=0 | OPP free=1 jail=3 ball=1 | [Opponent h1 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0]
+[DIAG t=12.0 team=TeamA] ME free=4 jail=0 ball=0 | OPP free=1 jail=3 ball=0 | [Neutral h0 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0]
+[DIAG t=15.0 team=TeamA] ME free=4 jail=0 ball=1 | OPP free=1 jail=3 ball=1 | [Team h1 r1][Neutral h0 r0][Opponent h1 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0]
+[THROW t=16.3 m=3] iT=0.48 fb=0
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=4 jail=0 ball=0 | OPP free=4 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1]
+[THROW t=2.6 m=0] iT=0.49 fb=0
+[THROW t=2.6 m=1] iT=0.49 fb=0
+[THROW t=2.7 m=3] iT=0.49 fb=0
+[DIAG t=3.0 team=TeamB] ME free=4 jail=0 ball=0 | OPP free=4 jail=0 ball=3 | [Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h0 r1]
+[JAIL t=4.8 m=1 team=TeamB]
+[THROW t=5.2 m=0] iT=0.22 fb=0
+[DIAG t=6.0 team=TeamB] ME free=3 jail=1 ball=2 | OPP free=1 jail=3 ball=1 | [Team h1 r1][Neutral h0 r0][Neutral h0 r1][Team h1 r1][Opponent h0 r1][Opponent h1 r0]
+[THROW t=6.4 m=2] iT=0.25 fb=0
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+]]></output>
+          </test-case>
+          <test-case id="1008" name="HeadToHead_5v5_1b" fullname="Tests.DodgeballTests.HeadToHead_5v5_1b" methodname="HeadToHead_5v5_1b" classname="Tests.DodgeballTests" runstate="Runnable" seed="1045471861" result="Passed" start-time="2026-06-30 01:01:01Z" end-time="2026-06-30 01:01:05Z" duration="3.228821" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=5 ballsPerTeam=1
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=5 jail=0 ball=0 | OPP free=5 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0]
+[THROW t=1.8 m=4] iT=0.49 fb=0
+[DIAG t=3.0 team=TeamA] ME free=5 jail=0 ball=0 | OPP free=4 jail=1 ball=0 | [Neutral h0 r1][Neutral h0 r0]
+[THROW t=4.4 m=4] iT=0.17 fb=0
+[DIAG t=6.0 team=TeamA] ME free=5 jail=0 ball=0 | OPP free=3 jail=2 ball=1 | [Opponent h1 r0][Neutral h0 r0]
+[THROW t=7.3 m=0] iT=0.49 fb=0
+[DIAG t=9.0 team=TeamA] ME free=5 jail=0 ball=0 | OPP free=2 jail=3 ball=0 | [Neutral h0 r1][Neutral h0 r1]
+[THROW t=9.3 m=0] iT=0.11 fb=0
+[THROW t=10.5 m=4] iT=0.22 fb=0
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=5 jail=0 ball=0 | OPP free=5 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1]
+[THROW t=1.9 m=4] iT=0.48 fb=0
+[DIAG t=3.0 team=TeamB] ME free=5 jail=0 ball=0 | OPP free=4 jail=1 ball=0 | [Neutral h0 r1][Neutral h0 r1]
+[THROW t=4.6 m=4] iT=0.23 fb=0
+[THROW t=5.3 m=3] iT=0.23 fb=0
+[DIAG t=6.0 team=TeamB] ME free=5 jail=0 ball=0 | OPP free=2 jail=3 ball=1 | [Neutral h0 r1][Opponent h1 r0]
+[THROW t=6.4 m=0] iT=0.21 fb=0
+[THROW t=7.6 m=0] iT=0.11 fb=0
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+]]></output>
+          </test-case>
+          <test-case id="1007" name="HeadToHead_5v5_4b" fullname="Tests.DodgeballTests.HeadToHead_5v5_4b" methodname="HeadToHead_5v5_4b" classname="Tests.DodgeballTests" runstate="Runnable" seed="1190954293" result="Passed" start-time="2026-06-30 01:01:05Z" end-time="2026-06-30 01:01:12Z" duration="7.173318" asserts="0">
+            <properties>
+              <property name="_JOINTYPE" value="UnityCombinatorial" />
+              <property name="Timeout" value="2147483647" />
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+            <output><![CDATA[TESTING dodgeball: teamSize=5 ballsPerTeam=4
+Total matches for test: 2 Match Len Sec: 120
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamA] ME free=5 jail=0 ball=0 | OPP free=5 jail=0 ball=0 | [Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0]
+[THROW t=2.6 m=0] iT=0.49 fb=0
+[THROW t=2.6 m=1] iT=0.49 fb=0
+[THROW t=2.7 m=2] iT=0.49 fb=0
+[DIAG t=3.0 team=TeamA] ME free=5 jail=0 ball=1 | OPP free=5 jail=0 ball=4 | [Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h1 r1][Opponent h1 r0][Team h0 r1][Opponent h1 r0]
+[THROW t=3.4 m=4] iT=0.49 fb=0
+[THROW t=5.1 m=4] iT=0.31 fb=0
+[THROW t=5.2 m=0] iT=0.46 fb=0
+[DIAG t=6.0 team=TeamA] ME free=5 jail=0 ball=0 | OPP free=1 jail=4 ball=0 | [Neutral h0 r0][Opponent h0 r1][Neutral h0 r1][Team h0 r1][Neutral h0 r1][Neutral h0 r0][Neutral h0 r0][Opponent h0 r1]
+[THROW t=7.5 m=4] iT=0.50 fb=0
+[THROW t=8.8 m=3] iT=0.18 fb=0
+Player's team won! Now at Win-Loss-Tie: 1-0-0
+Finding PrisonDodgeballManager singleton
+[DIAG t=0.0 team=TeamB] ME free=5 jail=0 ball=0 | OPP free=5 jail=0 ball=0 | [Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r1]
+[THROW t=2.6 m=0] iT=0.49 fb=0
+[THROW t=2.6 m=1] iT=0.49 fb=0
+[THROW t=2.7 m=2] iT=0.49 fb=0
+[THROW t=3.0 m=4] iT=0.49 fb=0
+[DIAG t=3.0 team=TeamB] ME free=5 jail=0 ball=0 | OPP free=5 jail=0 ball=4 | [Opponent h1 r1][Team h0 r1][Opponent h1 r1][Team h0 r1][Opponent h1 r0][Team h0 r1][Opponent h1 r0][Team h0 r1]
+[JAIL t=4.2 m=2 team=TeamB]
+[JAIL t=5.1 m=0 team=TeamB]
+[DIAG t=6.0 team=TeamB] ME free=3 jail=2 ball=0 | OPP free=4 jail=1 ball=1 | [Opponent h1 r0][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Opponent h0 r1][Neutral h0 r0][Opponent h0 r0][Neutral h0 r0]
+[DIAG t=9.0 team=TeamB] ME free=3 jail=2 ball=0 | OPP free=4 jail=1 ball=1 | [Opponent h0 r1][Opponent h1 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0]
+[DIAG t=12.0 team=TeamB] ME free=3 jail=2 ball=1 | OPP free=4 jail=1 ball=1 | [Neutral h0 r1][Opponent h1 r1][Team h1 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Neutral h0 r0][Opponent h0 r1]
+[THROW t=12.1 m=3] iT=0.49 fb=0
+[THROW t=14.6 m=4] iT=0.48 fb=0
+[DIAG t=15.0 team=TeamB] ME free=3 jail=2 ball=0 | OPP free=5 jail=0 ball=3 | [Team h0 r1][Neutral h0 r1][Neutral h0 r0][Opponent h1 r0][Neutral h0 r0][Neutral h0 r0][Opponent h1 r1][Opponent h1 r0]
+[THROW t=17.5 m=3] iT=0.49 fb=0
+[DIAG t=18.0 team=TeamB] ME free=3 jail=2 ball=1 | OPP free=3 jail=2 ball=3 | [Neutral h0 r0][Team h0 r1][Opponent h1 r0][Opponent h0 r1][Neutral h0 r0][Opponent h1 r0][Team h1 r1][Opponent h1 r1]
+[THROW t=20.2 m=3] iT=0.43 fb=0
+[DIAG t=21.0 team=TeamB] ME free=4 jail=1 ball=2 | OPP free=3 jail=2 ball=1 | [Neutral h0 r0][Opponent h1 r1][Neutral h0 r1][Neutral h0 r0][Neutral h0 r0][Team h1 r1][Team h1 r0][Neutral h0 r1]
+[THROW t=21.4 m=3] iT=0.54 fb=0
+[JAIL t=22.3 m=1 team=TeamB]
+[DIAG t=24.0 team=TeamB] ME free=3 jail=2 ball=1 | OPP free=4 jail=1 ball=4 | [Opponent h1 r1][Opponent h1 r0][Neutral h0 r1][Neutral h0 r1][Opponent h1 r0][Opponent h1 r1][Team h1 r0][Team h0 r0]
+[THROW t=25.4 m=0] iT=0.48 fb=0
+[DIAG t=27.0 team=TeamB] ME free=4 jail=1 ball=1 | OPP free=4 jail=1 ball=2 | [Opponent h1 r0][Opponent h1 r0][Neutral h0 r0][Neutral h0 r1][Neutral h0 r0][Neutral h0 r0][Neutral h0 r1][Team h1 r0]
+[THROW t=29.1 m=4] iT=0.49 fb=0
+[THROW t=29.3 m=2] iT=0.48 fb=0
+[DIAG t=30.0 team=TeamB] ME free=4 jail=1 ball=1 | OPP free=3 jail=2 ball=1 | [Opponent h1 r0][Neutral h0 r1][Neutral h0 r1][Team h1 r1][Neutral h0 r1][Neutral h0 r1][Neutral h0 r1][Neutral h0 r1]
+[THROW t=31.0 m=0] iT=0.41 fb=0
+[THROW t=31.7 m=0] iT=0.32 fb=0
+[DIAG t=33.0 team=TeamB] ME free=4 jail=1 ball=2 | OPP free=1 jail=4 ball=0 | [Neutral h0 r1][Neutral h0 r1][Neutral h0 r1][Neutral h0 r0][Team h1 r1][Team h1 r1][Neutral h0 r0][Neutral h0 r1]
+[THROW t=33.5 m=2] iT=0.20 fb=0
+Player's team won! Now at Win-Loss-Tie: 2-0-0
+Saving results to: /Users/arnavjha/Library/Application Support/DefaultCompany/GameAI_PrisonDodgeball/TestResults.xml
+]]></output>
+          </test-case>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
