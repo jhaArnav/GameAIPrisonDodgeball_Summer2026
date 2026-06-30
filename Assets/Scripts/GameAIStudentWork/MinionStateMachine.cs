@@ -38,19 +38,14 @@ namespace GameAIStudent
         public static float MaxAllowedThrowPositionError = (0.25f + 0.5f) * 0.99f;
 
         // ---- Tunable strategy parameters (adjust after head-to-head test runs) ----
-        // Only take high-confidence shots: short flight time => opponent can't dodge in time =>
-        // high hit rate. We CLOSE THE DISTANCE (advance toward the target) to create these shots
-        // rather than chucking long, easily-dodged cross-field throws.
-        const float ThrowMaxInterceptT = 1.1f;
-        // Fallback cap: if no SHORT shot has been available for a while, take the best REACHABLE
-        // shot regardless of flight time. Effectively unbounded -> "any shot the ballistics can
-        // solve." Against a non-dodging opponent (Glass Joe = 85% of the grade) every accurate
-        // shot is a free elimination, so holding fire for a perfect short shot just stalemates.
-        const float ThrowMaxInterceptTRelaxed = 99f;
-        // How long (sec) we hold the ball without a short shot before firing the relaxed shot.
-        // Short shots reset this every frame, so in ball-rich play the fallback ~never triggers
-        // (winning configs stay unchanged); it only kicks in during scarce-ball stalemates.
-        const float FireAnywayDelay = 0.7f;
+        // DIAGNOSTIC FINDING: our PredictThrow leads a CONSTANT-velocity target, but over a ~1s
+        // flight a real opponent maneuvers (turns/stops/starts) -> long shots MISS (and in scarce-ball
+        // a miss hands away possession). Short shots give no time to deviate -> they hit. A STATIONARY
+        // opponent doesn't deviate at all, so a long shot at it is also a reliable hit.
+        // => cap flight time by opponent speed: short shots at movers, long shots only at near-stills.
+        const float ShortShotMaxT = 0.5f;       // moving target: only quick, undodgeable shots
+        const float LongShotMaxT = 1.2f;        // near-stationary target: a slow shot still lands
+        const float StationarySpeed = 1.0f;     // opponent speed (m/s) below which "long" shots are safe
         // Penalty (sec) added to an armed opponent's shot score so we prefer defenseless targets
         // (an opponent without a ball can't counter-throw -> a free elimination). Larger than the
         // max intercept time so any ball-less target outranks any armed one.
@@ -173,11 +168,11 @@ namespace GameAIStudent
             }
 
             // Pick the best (quickest, hardest-to-dodge) valid shot among all live opponents.
-            // maxT caps the allowed ball flight time; pass ThrowMaxInterceptTRelaxed for the
-            // fire-anyway fallback (take any reachable shot, not just short ones).
+            // Per-opponent flight cap: only quick shots at MOVING targets (a slow shot misses a
+            // maneuvering opponent), but allow slower shots at near-STATIONARY targets (which won't
+            // deviate). This is the core fix from the diagnostic run.
             protected bool FindBestThrowTarget(
-                out Vector3 dir, out float speedNorm, out Vector3 interceptPos, out float interceptT,
-                float maxT = ThrowMaxInterceptT)
+                out Vector3 dir, out float speedNorm, out Vector3 interceptPos, out float interceptT)
             {
                 dir = Vector3.forward;
                 speedNorm = 1f;
@@ -199,7 +194,9 @@ namespace GameAIStudent
                     if (!TryAim(o, out var d, out var sn, out var ip, out var t))
                         continue;
 
-                    if (t > maxT)
+                    // Stationary target tolerates a long shot; a mover only a short one.
+                    float cap = (o.Vel.magnitude < StationarySpeed) ? LongShotMaxT : ShortShotMaxT;
+                    if (t > cap)
                         continue;
 
                     // Prefer DEFENSELESS targets: an opponent without a ball can't counter-throw,
@@ -528,33 +525,12 @@ namespace GameAIStudent
                 if (FindRescuableTeammate(out var buddy))
                     return ParentFSM.CreateStateTransition<MinionScript>(RescueStateName, buddy, true);
 
-                // FIRE-ANYWAY FALLBACK: if we've been holding the ball without a short shot for a
-                // while, the opponents aren't coming into short range (they're sitting on their
-                // back line, e.g. scarce-ball configs). Holding for a perfect short shot just
-                // stalemates. Take the best REACHABLE shot (quickest intercept) instead -- against
-                // a non-dodging opponent it's a free kill, and it converts stalls into action.
+                // NO fire-anyway long shots: the diagnostic proved long shots miss a maneuvering
+                // opponent AND throw away possession. Instead CLOSE THE DISTANCE to manufacture a
+                // short, high-hit-rate shot, and fire the instant one opens up (handled above).
+                // The navmesh clamps us to our legal area, so we advance as far forward as allowed.
+                // Prefer advancing on a DEFENSELESS opponent (no counter-throw risk), else press anyone.
                 float held = Time.timeSinceLevelLoad - enterTime;
-                if (held > FireAnywayDelay &&
-                    FindBestThrowTarget(out var ld, out var lsn, out var lip, out _,
-                                        ThrowMaxInterceptTRelaxed))
-                {
-                    Minion.Stop();
-                    Minion.FaceTowardsForThrow(lip);
-                    if (Minion.ThrowBall(ld, lsn))
-                    {
-                        Debug.Log($"[THROW t={Time.timeSinceLevelLoad:0.0} m={Minion.SpawnIndex}] fb=1"); // DIAG
-                        return ParentFSM.CreateStateTransition(CollectBallStateName);
-                    }
-
-                    DodgeIfThreatened(); // still turning to aim; survive meanwhile
-                    return null;
-                }
-
-                // CLOSE THE DISTANCE to manufacture a short, high-hit-rate shot (preferred). The
-                // navmesh clamps us to our legal area, so this advances as far forward as the rules
-                // allow; we stop and fire the instant a shot opens up (handled above). Prefer
-                // advancing on a DEFENSELESS opponent (no counter-throw risk), else press anyone.
-                // Same rule for every config -- no per-ball-count special cases.
                 if (NearestDefenselessOpponentPos(out var softPos))
                 {
                     Minion.GoTo(softPos);
