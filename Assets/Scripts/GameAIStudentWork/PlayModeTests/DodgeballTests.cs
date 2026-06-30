@@ -18,7 +18,7 @@ namespace Tests
     {
 
         const int matchLenSec = 120;
-        const int numMatches = 10;
+        const int numMatches = 2; // DIAG: reduced for fast instrumented diagnostic runs (restore to 10)
 
         const int PlayMatchTimeOutMS = int.MaxValue; // don't mess with this; add it to new tests
                                                      // as [Timeout(PlayMatchTimeOutMS)] (see below for

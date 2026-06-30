@@ -58,7 +58,9 @@ namespace GameAIStudent
         // If we hold a ball but can't find a shot for this long, reposition / re-plan.
         const float MaxThrowWaitSec = 2.5f;
         // How often a ball-less defender re-picks a position (keeps it mobile, harder to hit).
-        const float DefenseRepositionSec = 2.0f;
+        // Short so defenders stay in continuous motion — a moving minion is ~un-hittable by
+        // Glass Joe's no-lead throw.
+        const float DefenseRepositionSec = 0.8f;
         // Lateral spacing between defenders so they spread out instead of clustering.
         const float DefenseLateralSpacing = 2.5f;
         // Approximate dodgeball radius, used to space the twin occlusion rays.
@@ -509,7 +511,10 @@ namespace GameAIStudent
 
                     // Throwing is our edge: fire the instant we're aligned (don't dodge it away).
                     if (Minion.ThrowBall(dir, speedNorm))
+                    {
+                        Debug.Log($"[THROW t={Time.timeSinceLevelLoad:0.0} m={Minion.SpawnIndex}] iT={interceptT:0.00} fb=0"); // DIAG
                         return ParentFSM.CreateStateTransition(CollectBallStateName);
+                    }
 
                     // Not aligned yet: dodge an incoming ball while we keep turning to aim.
                     DodgeIfThreatened();
@@ -536,7 +541,10 @@ namespace GameAIStudent
                     Minion.Stop();
                     Minion.FaceTowardsForThrow(lip);
                     if (Minion.ThrowBall(ld, lsn))
+                    {
+                        Debug.Log($"[THROW t={Time.timeSinceLevelLoad:0.0} m={Minion.SpawnIndex}] fb=1"); // DIAG
                         return ParentFSM.CreateStateTransition(CollectBallStateName);
+                    }
 
                     DodgeIfThreatened(); // still turning to aim; survive meanwhile
                     return null;
@@ -744,11 +752,14 @@ namespace GameAIStudent
         class GlobalTransitionState : MinionStateCommon
         {
             bool wasPrisoner = false;
+            float lastDiag = -999f; // DIAG (remove before submission)
 
             public override string Name => GlobalTransitionStateName;
 
             public override StateTransitionBase<MinionFSMData> Update()
             {
+                DiagSnapshot(); // DIAG (remove before submission)
+
                 if (Mgr.IsGameOver && !ParentFSM.CurrentState.Name.Equals(RestStateName))
                 {
                     return ParentFSM.CreateStateTransition(RestStateName);
@@ -756,6 +767,7 @@ namespace GameAIStudent
                 else if (Minion.IsPrisoner && !wasPrisoner)
                 {
                     wasPrisoner = true;
+                    Debug.Log($"[JAIL t={Time.timeSinceLevelLoad:0.0} m={Minion.SpawnIndex} team={Team}]"); // DIAG
                     return ParentFSM.CreateStateTransition(GoToPrisonStateName);
                 }
                 else if (!Minion.IsPrisoner && wasPrisoner)
@@ -764,6 +776,42 @@ namespace GameAIStudent
                 }
 
                 return null;
+            }
+
+            // DIAG (remove before submission): the SpawnIndex==0 minion logs the whole-match state
+            // every ~3s so we can read the elimination race + ball control from the exported XML.
+            void DiagSnapshot()
+            {
+                if (Minion.SpawnIndex != 0) return;
+                float now = Time.timeSinceLevelLoad;
+                if (now - lastDiag < 3f) return;
+                lastDiag = now;
+
+                int myFree = 0, myJail = 0, myBall = 0;
+                if (TeamData?.TeamMates != null)
+                    foreach (var m in TeamData.TeamMates)
+                    {
+                        if (m == null) continue;
+                        if (m.IsPrisoner) myJail++; else myFree++;
+                        if (m.HasBall) myBall++;
+                    }
+
+                int oppFree = 0, oppJail = 0, oppBall = 0;
+                var opps = Shared?.OppInfo;
+                if (opps != null)
+                    foreach (var o in opps)
+                    {
+                        if (o.IsPrisoner) oppJail++; else oppFree++;
+                        if (o.HasBall) oppBall++;
+                    }
+
+                string balls = "";
+                var db = TeamData?.DBInfo;
+                if (db != null)
+                    foreach (var b in db)
+                        balls += $"[{b.State} h{(b.IsHeld ? 1 : 0)} r{(b.Reachable ? 1 : 0)}]";
+
+                Debug.Log($"[DIAG t={now:0.0} team={Team}] ME free={myFree} jail={myJail} ball={myBall} | OPP free={oppFree} jail={oppJail} ball={oppBall} | {balls}");
             }
         }
 
